@@ -206,13 +206,6 @@ class QuestionAdminForm extends ContentEntityForm {
       '#open' => TRUE,
     ];
 
-    $form['path_group'] = [
-      '#type' => 'details',
-      '#group' => 'advanced',
-      '#title' => $this->t('URL alias'),
-      '#access' => $this->currentUser()->hasPermission('administer asklib'),
-    ];
-
     $ip_address = $question->getIpAddress();
     $form['asker_details'] = [
       '#type' => 'details',
@@ -284,20 +277,6 @@ class QuestionAdminForm extends ContentEntityForm {
 
     $form['feeds']['#group'] = 'feeds_group';
     $form['feeds']['widget']['#description'] = $this->t('The question will be published in selected RSS feeds.');
-
-    $form['path_widget'] = [
-      '#type' => 'container',
-      '#group' => 'path_group',
-      'path' => [
-        '#type' => 'textfield',
-        '#title' => $this->t('Identifier'),
-        '#default_value' => $form_state->getValue('path') ?: $this->slugForQuestion(),
-        '#description' => $this->t('URL alias should contain around 3-6 keywords separated with a dash. Only use letters and numbers.'),
-        '#attributes' => [
-          'pattern' => '[\wöäå\-]+',
-        ]
-      ]
-    ];
 
     if (isset($form['answer'])) {
       foreach (Element::children($form['answer']['widget']) as $delta) {
@@ -435,7 +414,6 @@ class QuestionAdminForm extends ContentEntityForm {
         '::submitForm',
         '::processMarkAnswered',
         '::save',
-        '::processSlug',
       ];
 
       $actions['submit']['#dropbutton'] = 'save';
@@ -524,24 +502,6 @@ class QuestionAdminForm extends ContentEntityForm {
     }
   }
 
-  public function processSlug(array $form, FormStateInterface $form_state) {
-    $langcode = $this->entity->language()->getId();
-    $source = '/' . $this->entity->urlInfo()->getInternalPath();
-    $match = $this->aliases->load([
-      'source' => $source,
-      'langcode' => $langcode,
-    ]);
-
-    $alias = $this->aliasGenerator->build($this->entity);
-
-    if ($slug = $form_state->getValue('path')) {
-      $alias = substr_replace($alias, $slug, strrpos($alias, '/') + 1);
-    }
-
-    $pid = empty($match) ? NULL : $match['pid'];
-    $this->aliases->save($source, $alias, $langcode, $pid);
-  }
-
   public function validateReserve(array $form, FormStateInterface $form_state) {
     if ($this->entity->isReserved()) {
       throw new \Exception('Question is already taken!');
@@ -607,18 +567,6 @@ class QuestionAdminForm extends ContentEntityForm {
     $lines_alt = ceil(mb_strlen($body) / 60);
     $value = max(substr_count($body, "\n") + 2, $lines_alt);
     return max($value, $fallback);
-  }
-
-  protected function slugForQuestion() {
-    $slug = substr(strrchr($this->entity->url(), '/'), 1);
-
-    if (!ctype_digit($slug)) {
-      // Strip query variables potentially injected by other modules etc.
-      list($slug, $_) = explode('?', $slug . '?');
-      return $slug;
-    }
-
-    return Slugger::slugify($this->entity->label());
   }
 
   protected function getQuestionFormHeader(QuestionInterface $question) {
